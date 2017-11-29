@@ -1,0 +1,52 @@
+#!/bin/bash
+
+APPDIR="$(dirname $0)"
+APP=$(basename "$APPDIR")
+EXT="${APP##*.}"
+APP=$(basename "$APP" ".app")
+
+# check app container
+[ "$EXT" == "app" ] && [ -d "$APPDIR/Contents" ] && cd "$APPDIR" || {
+  echo "$0 should be lauched by MacOS App!" 1>&2
+  exit 1
+}
+
+# setup TaskUnifier package
+[ -d "TaskUnifier" ] || {
+  echo "Downloading TaskUnifier from sourceforge ..."
+  curl -s -o TaskUnifier.zip -L https://sourceforge.net/projects/taskunifier/files/binaries/TaskUnifier_4_3_4/TaskUnifier_4_3_4_other.zip \
+  && unzip -q TaskUnifier.zip \
+  && rm TaskUnifier.zip \
+  && cp TaskUnifier/resources/icon.icns Contents/Resources/applet.icns \
+  || { echo "TaskUnifier setup failed!" 1>&2; exit 2; }
+}
+
+# check TaskUnifier directory
+cd "TaskUnifier" && [ -f "TaskUnifier.jar" ] || {
+  echo "Missing TaskUnifier directory!" 1>&2
+  exit 3
+}
+BASEDIR="."
+
+# setup user data_folder in ~/Library/Application Support
+[ "$HOME" ] && USER_HOME="$HOME" || USER_HOME="$(echo ~)"
+USERDIR="$USER_HOME/Library/Application Support"
+
+# use AppName for data_folder (or existing default directory)
+[ -d "$USERDIR/TaskUnifier" ] && USERDATA="$USERDIR/TaskUnifier" || USERDATA="$USERDIR/$APP"
+
+# startup TaskUnifier and detach from terminal
+nohup java -Xmx512m \
+     -Xdock:icon="$BASEDIR/resources/icon.icns" \
+     -Dcom.leclercb.taskunifier.resource_folder="$BASEDIR/resources" \
+     -Dcom.leclercb.taskunifier.mac_app_bundle=true \
+     -Dapple.laf.useScreenMenuBar=true \
+     -Dcom.apple.macos.useScreenMenuBar=true \
+     -Dcom.apple.macos.use-file-dialog-packages=true \
+     -Dapple.awt.application.name=$APP \
+     -Dcom.apple.mrj.application.apple.menu.about.name=$APP \
+     -Dcom.leclercb.taskunifier.data_folder="$USERDATA" \
+     -splash:"$BASEDIR/resources/images/splash_screen.png" \
+     -jar "$BASEDIR/TaskUnifier.jar" >/dev/null 2>&1 &
+
+exit 0
